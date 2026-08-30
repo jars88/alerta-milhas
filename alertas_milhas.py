@@ -1,5 +1,5 @@
 import os
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone, timedelta, time
 import requests
 import feedparser
 
@@ -91,10 +91,15 @@ def enviar_telegram(titulo, link):
 def executar():
     # Validação do horário de silêncio (Horário de Brasília: UTC-3)
     fuso_brasilia = timezone(timedelta(hours=-3))
-    hora_atual = datetime.now(fuso_brasilia).hour
+    agora = datetime.now(fuso_brasilia)
+    hora_minuto_atual = agora.time()
 
-    if hora_atual >= 23 or hora_atual < 6:
-        print(f"Modo noturno ativo ({hora_atual}h). Alertas silenciados.")
+    # Pausa os envios das 23:59:00 até as 05:59:59
+    inicio_silencio = time(23, 59, 0)
+    fim_silencio = time(5, 59, 59)
+
+    if hora_minuto_atual >= inicio_silencio or hora_minuto_atual <= fim_silencio:
+        print(f"Modo noturno ativo ({agora.strftime('%H:%M')}). Alertas silenciados.")
         return
 
     enviados = carregar_enviados()
