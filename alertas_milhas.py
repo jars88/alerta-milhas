@@ -1,16 +1,20 @@
 import os
+from datetime import datetime, timezone, timedelta
 import requests
 import feedparser
 
+# Configurações do Telegram
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
+# Portais agregadores de promoções
 FEEDS = [
     "https://www.melhorescartoes.com.br/feed",
     "https://passageirodeprimeira.com/feed/",
     "https://pontospravoar.com/feed/"
 ]
 
+# Palavras-chave de campanhas de transferência bonificada
 PALAVRAS_CHAVE = [
     "bônus", "transferência", "átomos", "livelo", "esfera", 
     "latam pass", "latam", "smiles", "tudoazul", "azul fidelidade", "% de bônus"
@@ -44,6 +48,15 @@ def enviar_telegram(titulo, link):
     requests.post(url, json=payload, timeout=10)
 
 def executar():
+    # Validação do horário de silêncio (Horário de Brasília: UTC-3)
+    fuso_brasilia = timezone(timedelta(hours=-3))
+    hora_atual = datetime.now(fuso_brasilia).hour
+
+    # Pausa os envios das 23h59 até as 05h59
+    if hora_atual >= 23 or hora_atual < 6:
+        print(f"Modo noturno ativo ({hora_atual}h - Horário de Brasília). Alertas silenciados.")
+        return
+
     enviados = carregar_enviados()
     novos_enviados = 0
 
