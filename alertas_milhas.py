@@ -30,26 +30,41 @@ TERMOS_COMPRA_VAREJO = [
     "pontos a cada real", "pts a cada real", "milhas por real", "milhas por r$"
 ]
 
-# Filtro restrito: Apenas Livelo e C6 Átomos
-MEUS_PROGRAMAS_ORIGEM = {
-    "livelo": ("🩷 LIVELO", ["livelo"]),
-    "atomos": ("⚫ C6 ÁTOMOS", ["átomos", "atomos", "c6 bank", "c6"])
-}
-
-# Outros bancos para descarte de promoções exclusivas que não te atendem
-OUTROS_BANCOS_IGNORAR = [
-    "esfera", "santander", "itaú", "itau", "iupp", "brb", "curtaí", 
-    "curtai", "coopera", "sicoob", "inter loop", "nubank", "caixa"
+# 3. Termos de Milhas Fáceis, Cadastros e Ações Gratuitas
+TERMOS_MILHAS_FACEIS = [
+    # Cadastro
+    "cadastre-se", "cadastro", "inscreva-se", "registro",
+    # Sem custo
+    "grátis", "gratuito", "sem custo", "sem gastar", "sem compra", "sem assinatura",
+    # Ganhar pontos
+    "ganhe pontos", "ganhe milhas", "receba pontos", "receba milhas", 
+    "bônus de cadastro", "pontos de boas-vindas", "milhas de boas-vindas",
+    # Missões
+    "missão", "desafio", "campanha", "ative a oferta", "ative a promoção",
+    # Programas
+    "novo parceiro", "novo programa", "parceiro",
+    # Aplicativos
+    "baixe o aplicativo", "instale o aplicativo", "faça login", "primeiro acesso",
+    # Pesquisas
+    "pesquisa", "responda", "questionário",
+    # Ações simples
+    "complete seu cadastro", "atualize seu cadastro", "confirme seu e-mail", "confirme seus dados"
 ]
 
-# Companhias Aéreas e Parceiros de Destino
-COMPANHIAS_DESTINO = {
+# Mapeamento de Programas e Ícones Visuais
+PROGRAMAS = {
     "latam": ("🔴 LATAM PASS", ["latam", "latam pass"]),
     "smiles": ("🟠 SMILES", ["smiles", "gol"]),
     "azul": ("🔵 AZUL FIDELIDADE", ["azul", "tudoazul", "azul fidelidade"]),
+    "livelo": ("🩷 LIVELO", ["livelo"]),
+    "atomos": ("⚫ C6 ÁTOMOS", ["átomos", "atomos", "c6 bank", "c6"]),
+    "esfera": ("🟢 ESFERA", ["esfera", "santander"]),
     "tap": ("⚪ TAP MILES&GO", ["tap miles", "miles&go", "tap"]),
     "accor": ("🏨 ALL ACCOR", ["all accor", "accor"])
 }
+
+# Bancos exclusivos para compras no varejo
+BANCOS_RESTRITOS_COMPRA = ["livelo", "átomos", "atomos", "c6"]
 
 ARQUIVO_HISTORICO_TXT = "enviados.txt"
 ARQUIVO_HISTORICO_CSV = "historico_alertas.csv"
@@ -68,108 +83,75 @@ def salvar_enviado(link):
     with open(ARQUIVO_HISTORICO_TXT, "a", encoding="utf-8") as f:
         f.write(f"{link}\n")
 
-def registrar_historico_csv(data_hora, categoria, origens, destinos, detalhe, titulo, link):
+def registrar_historico_csv(data_hora, categoria, programas, detalhe, titulo, link):
     arquivo_novo = not os.path.exists(ARQUIVO_HISTORICO_CSV)
 
     with open(ARQUIVO_HISTORICO_CSV, "a", newline="", encoding="utf-8-sig") as f:
         writer = csv.writer(f, delimiter=";")
         if arquivo_novo:
-            writer.writerow(["Data", "Hora", "Categoria", "Origem", "Destino", "Bonus_Multiplicador", "Titulo", "Link"])
+            writer.writerow(["Data", "Hora", "Categoria", "Programas", "Detalhe_Extraido", "Titulo", "Link"])
         
         writer.writerow([
             data_hora.strftime("%d/%m/%Y"),
             data_hora.strftime("%H:%M:%S"),
             categoria,
-            origens,
-            destinos,
+            programas,
             detalhe,
             titulo,
             link
         ])
 
-def verificar_relevancia(texto_lower):
-    # Se mencionar Livelo ou C6 Átomos diretamente, é aprovado
-    tem_meu_programa = any(
-        any(sin in texto_lower for sin in dados[1]) 
-        for dados in MEUS_PROGRAMAS_ORIGEM.values()
-    )
-    if tem_meu_programa:
-        return True
-
-    # Se for uma promoção exclusiva de outro banco (ex: Esfera, Itaú), descarta
-    if any(banco in texto_lower for banco in OUTROS_BANCOS_IGNORAR):
-        return False
-
-    # Se for promoção genérica para "todos os bancos" ou das aéreas sem banco específico
-    termos_genericos = ["todos os bancos", "bancos participantes", "demais bancos", "cartões de crédito"]
-    if any(tg in texto_lower for tg in termos_genericos):
-        return True
-
-    # Se mencionar companhia aérea e bônus sem citar banco exclusivo, aceita
-    tem_aerea = any(
-        any(sin in texto_lower for sin in dados[1]) 
-        for dados in COMPANHIAS_DESTINO.values()
-    )
-    tem_bonus = any(tb in texto_lower for tb in TERMOS_TRANSFERENCIA)
-    return tem_aerea and tem_bonus
-
-def extrair_origem_destino(texto):
+def identificar_programas(texto):
     texto_lower = texto.lower()
-    
-    origens_encontradas = []
-    for chave, (tag_nome, sinonimos) in MEUS_PROGRAMAS_ORIGEM.items():
+    tags = []
+    for chave, (tag_nome, sinonimos) in PROGRAMAS.items():
         if any(s in texto_lower for s in sinonimos):
-            origens_encontradas.append(tag_nome)
-            
-    destinos_encontrados = []
-    for chave, (tag_nome, sinonimos) in COMPANHIAS_DESTINO.items():
-        if any(s in texto_lower for s in sinonimos):
-            destinos_encontrados.append(tag_nome)
-            
-    str_origem = " | ".join(origens_encontradas) if origens_encontradas else "🩷 LIVELO / ⚫ ÁTOMOS (Ou Todos)"
-    str_destino = " | ".join(destinos_encontrados) if destinos_encontrados else "Companhia Aérea / Parceiro"
-    
-    return str_origem, str_destino
+            tags.append(tag_nome)
+    return " | ".join(tags) if tags else "🌐 PROGRAMAS / PARCEIROS"
 
-def classificar_oferta(texto):
-    texto_lower = texto.lower()
+def classificar_e_validar(titulo):
+    texto_lower = titulo.lower()
+    
     tem_transf = any(t in texto_lower for t in TERMOS_TRANSFERENCIA)
     tem_compra = any(t in texto_lower for t in TERMOS_COMPRA_VAREJO)
+    tem_facil = any(f in texto_lower for f in TERMOS_MILHAS_FACEIS)
 
+    # 1. Milhas Fáceis / Cadastro / Ação Gratuita
+    if tem_facil and not tem_compra:
+        return "🎁 MILHAS FÁCEIS & BÔNUS GRATUITOS"
+
+    # 2. Transferência Bonificada
     if tem_transf and not tem_compra:
         return "🔄 TRANSFERÊNCIA BONIFICADA"
-    elif tem_compra and not tem_transf:
-        return "🛍️ COMPRA BONIFICADA (PONTOS POR REAL)"
-    elif tem_transf and tem_compra:
+
+    # 3. Compra Bonificada (Restrita a Livelo / C6 Átomos)
+    if tem_compra and not tem_transf:
+        is_meu_banco = any(b in texto_lower for b in BANCOS_RESTRITOS_COMPRA)
+        if is_meu_banco:
+            return "🛍️ COMPRA BONIFICADA (PONTOS POR REAL)"
+        else:
+            return None  # Descarta se for de outro banco (ex: Esfera, Itaú)
+
+    if tem_transf and tem_compra:
         return "🔥 TRANSFERÊNCIA & COMPRA"
+
     return None
 
-def extrair_bonus_ou_multiplicador(texto):
+def extrair_detalhe(texto):
     match_bonus = re.search(r'(\d+)\s*%', texto)
     match_pts = re.search(r'(\d+)\s*(?:pontos|pts)', texto, re.IGNORECASE)
     
     if match_bonus:
         return f"Até {match_bonus.group(1)}% de bônus"
     elif match_pts:
-        return f"{match_pts.group(1)} pontos por R$ 1"
-    return "Consulte o regulamento"
+        return f"{match_pts.group(1)} pontos por R$ 1 / Recompensa"
+    return "Ação Gratuita / Cadastro Disponível"
 
-def enviar_telegram(titulo, link, categoria, origem, destino, bonus_info):
-    if "TRANSFERÊNCIA" in categoria:
-        bloco_detalhes = (
-            f"🏦 <b>Origem:</b> {origem}\n"
-            f"✈️ <b>Destino:</b> {destino}\n"
-            f"🎁 <b>Bônus:</b> {bonus_info}\n"
-        )
-    else:
-        bloco_detalhes = (
-            f"🏷️ <b>Programa:</b> {origem}\n"
-            f"⚡ <b>Multiplicador:</b> {bonus_info}\n"
-        )
-
+def enviar_telegram(titulo, link, categoria, programas, detalhe):
     mensagem = (
-        f"<b>{categoria}</b>\n\n"
-        f"{bloco_detalhes}\n"
+        f"<b>{categoria}</b>\n"
+        f"🏷️ <i>{programas}</i>\n"
+        f"🎁 <b>Detalhe:</b> {detalhe}\n\n"
         f"📌 <b>{titulo}</b>\n\n"
         f"🔗 <a href='{link}'>Clique aqui para conferir os detalhes</a>"
     )
@@ -190,7 +172,7 @@ def executar():
     agora = obter_horario_brasilia()
     hora_minuto_atual = agora.time()
 
-    # Silêncio estrito entre 23:59:00 e 05:59:59 (Horário de Brasília)
+    # Horário de silêncio rigoroso (23:59 às 05:59 BRT)
     inicio_silencio = time(23, 59, 0)
     fim_silencio = time(5, 59, 59)
 
@@ -209,16 +191,15 @@ def executar():
                 link = entry.link
 
                 if link not in enviados:
-                    categoria = classificar_oferta(titulo)
+                    categoria = classificar_e_validar(titulo)
                     
-                    # Checa se é transferência/compra e se envolve estritamente Livelo/Átomos
-                    if categoria and verificar_relevancia(titulo.lower()):
-                        origem, destino = extrair_origem_destino(titulo)
-                        bonus_info = extrair_bonus_ou_multiplicador(titulo)
+                    if categoria:
+                        programas = identificar_programas(titulo)
+                        detalhe = extrair_detalhe(titulo)
                         
-                        enviar_telegram(titulo, link, categoria, origem, destino, bonus_info)
+                        enviar_telegram(titulo, link, categoria, programas, detalhe)
                         salvar_enviado(link)
-                        registrar_historico_csv(agora, categoria, origem, destino, bonus_info, titulo, link)
+                        registrar_historico_csv(agora, categoria, programas, detalhe, titulo, link)
                         
                         enviados.add(link)
                         novos_enviados += 1
