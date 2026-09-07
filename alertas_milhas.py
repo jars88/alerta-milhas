@@ -30,25 +30,29 @@ TERMOS_COMPRA_VAREJO = [
     "pontos a cada real", "pts a cada real", "milhas por real", "milhas por r$"
 ]
 
-# 3. Termos de Milhas Fáceis, Cadastros e Ações Gratuitas
+# 3. Termos Estratégicos de Clubes de Pontos e Assinaturas Rentáveis
+TERMOS_CLUBES_PONTOS = [
+    "clube livelo", "clube smiles", "clube azul", "clube c6", 
+    "assine o clube", "assinatura do clube", "bônus no clube", 
+    "upgrade de clube", "milhas no clube", "pontos no clube",
+    "adesão ao clube", "promoção do clube"
+]
+
+# 4. Outras ações fáceis e gratuitas relevantes (sem assinaturas comerciais)
 TERMOS_MILHAS_FACEIS = [
-    # Cadastro
     "cadastre-se", "cadastro", "inscreva-se", "registro",
-    # Sem custo
-    "grátis", "gratuito", "sem custo", "sem gastar", "sem compra", "sem assinatura",
-    # Ganhar pontos
+    "grátis", "gratuito", "sem custo", "sem gastar", "sem compra",
     "ganhe pontos", "ganhe milhas", "receba pontos", "receba milhas", 
     "bônus de cadastro", "pontos de boas-vindas", "milhas de boas-vindas",
-    # Missões
     "missão", "desafio", "campanha", "ative a oferta", "ative a promoção",
-    # Programas
-    "novo parceiro", "novo programa", "parceiro",
-    # Aplicativos
     "baixe o aplicativo", "instale o aplicativo", "faça login", "primeiro acesso",
-    # Pesquisas
-    "pesquisa", "responda", "questionário",
-    # Ações simples
-    "complete seu cadastro", "atualize seu cadastro", "confirme seu e-mail", "confirme seus dados"
+    "pesquisa", "responda", "questionário", "confirme seus dados"
+]
+
+# Termos que devem ser ignorados para evitar ruído de varejo
+TERMOS_BLOQUEADOS = [
+    "streaming", "revista", "jornal", "vinho", "café", "pet", "curso", 
+    "academia", "seguro", "consórcio", "cartão de crédito sem anuidade"
 ]
 
 # Mapeamento de Programas e Ícones Visuais
@@ -63,7 +67,6 @@ PROGRAMAS = {
     "accor": ("🏨 ALL ACCOR", ["all accor", "accor"])
 }
 
-# Bancos exclusivos para compras no varejo
 BANCOS_RESTRITOS_COMPRA = ["livelo", "átomos", "atomos", "c6"]
 
 ARQUIVO_HISTORICO_TXT = "enviados.txt"
@@ -112,13 +115,18 @@ def identificar_programas(texto):
 def classificar_e_validar(titulo):
     texto_lower = titulo.lower()
     
+    # Se contiver termos bloqueados de serviços irrelevantes, descarta imediatamente
+    if any(bloco in texto_lower for bloco in TERMOS_BLOQUEADOS):
+        return None
+
     tem_transf = any(t in texto_lower for t in TERMOS_TRANSFERENCIA)
-    tem_compra = any(t in texto_lower for t in TERMOS_COMPRA_VAREJO)
+    tem_compra = any(c in texto_lower for c in TERMOS_COMPRA_VAREJO)
+    tem_clube = any(cl in texto_lower for cl in TERMOS_CLUBES_PONTOS)
     tem_facil = any(f in texto_lower for f in TERMOS_MILHAS_FACEIS)
 
-    # 1. Milhas Fáceis / Cadastro / Ação Gratuita
-    if tem_facil and not tem_compra:
-        return "🎁 MILHAS FÁCEIS & BÔNUS GRATUITOS"
+    # 1. Clube de Pontos e Assinaturas Estratégicas (Prioridade para Arbitragem)
+    if tem_clube:
+        return "🧩 CLUBE DE PONTOS & ASSINATURA ESTRATÉGICA"
 
     # 2. Transferência Bonificada
     if tem_transf and not tem_compra:
@@ -130,10 +138,11 @@ def classificar_e_validar(titulo):
         if is_meu_banco:
             return "🛍️ COMPRA BONIFICADA (PONTOS POR REAL)"
         else:
-            return None  # Descarta se for de outro banco (ex: Esfera, Itaú)
+            return None
 
-    if tem_transf and tem_compra:
-        return "🔥 TRANSFERÊNCIA & COMPRA"
+    # 4. Ações Gratuitas e Milhas Fáceis
+    if tem_facil and not tem_compra:
+        return "🎁 MILHAS FÁCEIS & BÔNUS GRATUITOS"
 
     return None
 
@@ -142,10 +151,10 @@ def extrair_detalhe(texto):
     match_pts = re.search(r'(\d+)\s*(?:pontos|pts)', texto, re.IGNORECASE)
     
     if match_bonus:
-        return f"Até {match_bonus.group(1)}% de bônus"
+        return f"Até {match_bonus.group(1)}% de bônus / Desconto"
     elif match_pts:
-        return f"{match_pts.group(1)} pontos por R$ 1 / Recompensa"
-    return "Ação Gratuita / Cadastro Disponível"
+        return f"{match_pts.group(1)} pontos por R$ 1 / Adesão"
+    return "Oportunidade Estratégica"
 
 def enviar_telegram(titulo, link, categoria, programas, detalhe):
     mensagem = (
@@ -172,7 +181,6 @@ def executar():
     agora = obter_horario_brasilia()
     hora_minuto_atual = agora.time()
 
-    # Horário de silêncio rigoroso (23:59 às 05:59 BRT)
     inicio_silencio = time(23, 59, 0)
     fim_silencio = time(5, 59, 59)
 
